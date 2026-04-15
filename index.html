@@ -17,6 +17,7 @@
 const {useState,useEffect,useRef}=React;
 const P={bg:"#1e1e1e",b2:"#262626",b3:"#2e2e2e",b4:"#363636",ac:"#c27030",gn:"#7a9a6a",rd:"#9a6a60",am:"#b8993a",tx:"#d4d0c8",t2:"#908a7a",t3:"#666058"};
 const SH="4px 4px 0 #111",FT="system-ui,-apple-system,sans-serif",SK="cf-s1";
+const API="https://script.google.com/macros/s/AKfycbzBLRn7Lzotuwj-F3EqyM89lgIq9JUlfGpt4XRL_nQf4KO19vYsysq1AFdsjxL2LhzL/exec";
 const uid=()=>Math.random().toString(36).slice(2,9);
 const fm=n=>Math.abs(n).toLocaleString("ru-RU")+" ₽";
 const tds=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
@@ -65,11 +66,22 @@ const DEF=[
   {id:"d6",type:"expense",amount:15000,cat:"ПРОЧЕЕ",desc:"Ноутбук",date:"2026-06-01",repeat:"once"},
 ];
 const DG={name:"ПОДУШКА БЕЗОПАСНОСТИ",target:100000,current:0,rate:10};
+
+// === SYNC ===
+async function cloudLoad(){
+  try{const r=await fetch(API+"?action=load");const t=await r.text();const d=JSON.parse(t);if(d&&d.items)return d;return null}catch(e){return null}
+}
+async function cloudSave(data){
+  try{await fetch(API+"?action=save",{method:"POST",body:JSON.stringify(data)})}catch(e){}
+}
+
 const si={fontFamily:FT,background:P.b3,color:P.tx,border:"2px solid #3a3630",padding:"10px 12px",fontSize:15,width:"100%",borderRadius:0,boxSizing:"border-box"};
 const sl={display:"block",fontSize:10,fontWeight:700,letterSpacing:1,color:P.t2,marginBottom:4,textTransform:"uppercase"};
 const sb=a=>({padding:"8px 12px",fontSize:11,fontWeight:700,border:"none",cursor:"pointer",margin:"0 4px 4px 0",background:a?P.ac:P.b4,color:a?"#1a1a1a":P.t2,boxShadow:a?"2px 2px 0 #111":"none"});
-const mb=p=>({display:"block",width:"100%",padding:14,fontSize:13,fontWeight:900,letterSpacing:2,textTransform:"uppercase",border:"none",cursor:"pointer",marginTop:8,background:p?P.ac:P.b3,color:p?"#1a1a1a":P.tx,boxShadow:SH,fontFamily:FT});
-function Mdl({children,onClose}){return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",zIndex:20,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={e=>{if(e.target===e.currentTarget)onClose()}}><div style={{background:P.b2,width:"100%",maxWidth:500,maxHeight:"85vh",overflowY:"auto",padding:20,borderTop:`3px solid ${P.ac}`}}>{children}</div></div>}
+const mmb=p=>({display:"block",width:"100%",padding:14,fontSize:13,fontWeight:900,letterSpacing:2,textTransform:"uppercase",border:"none",cursor:"pointer",marginTop:8,background:p?P.ac:P.b3,color:p?"#1a1a1a":P.tx,boxShadow:SH,fontFamily:FT});
+
+function Mdl({children,onClose}){return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.8)",zIndex:20,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={e=>{if(e.target===e.currentTarget)onClose()}}><div style={{background:P.b2,width:"100%",maxWidth:500,maxHeight:"85vh",overflowY:"auto",padding:20,borderTop:"3px solid "+P.ac}}>{children}</div></div>}
+
 function AddForm({type,onAdd,onClose}){const [a,sA]=useState("");const [d,sD]=useState(tds());const cs=type==="income"?IC:EC;const [c,sC]=useState(cs[0]);const [de,sDe]=useState("");const [r,sR]=useState("once");const co=type==="income"?P.gn:P.rd;
   return <Mdl onClose={onClose}><div style={{fontSize:18,fontWeight:900,letterSpacing:3,marginBottom:16,color:co}}>{type==="income"?"＋ ДОХОД":"－ РАСХОД"}</div>
     <div style={{marginBottom:14}}><div style={sl}>сумма</div><input style={{...si,fontSize:26,fontWeight:900,textAlign:"center",padding:"14px",borderColor:co}} type="number" inputMode="numeric" placeholder="0" value={a} onChange={e=>sA(e.target.value)} autoFocus/></div>
@@ -77,37 +89,68 @@ function AddForm({type,onAdd,onClose}){const [a,sA]=useState("");const [d,sD]=us
     <div style={{marginBottom:14}}><div style={sl}>описание</div><input style={si} placeholder="Что именно?" value={de} onChange={e=>sDe(e.target.value)}/></div>
     <div style={{marginBottom:14}}><div style={sl}>дата</div><input style={si} type="date" value={d} onChange={e=>sD(e.target.value)}/></div>
     <div style={{marginBottom:14}}><div style={sl}>повторять</div><div style={{display:"flex"}}>{[["once","РАЗОВО"],["monthly","ЕЖЕМЕСЯЧНО"],["weekly","ЕЖЕНЕДЕЛЬНО"]].map(([v,l])=><button key={v} style={{...sb(r===v),flex:1,margin:0,textAlign:"center"}} onClick={()=>sR(v)}>{l}</button>)}</div></div>
-    <button style={mb(true)} onClick={()=>{const v=parseInt(a);if(!v||v<=0)return;onAdd({id:uid(),type,amount:v,cat:c,desc:de||c,date:d,repeat:r})}}>ДОБАВИТЬ</button><button style={mb(false)} onClick={onClose}>ОТМЕНА</button></Mdl>}
-function Stg({goal,onGoal,onExport,onReset,onClose}){const [n,sN]=useState(goal.name);const [t,sT]=useState(String(goal.target));const [cu,sCu]=useState(String(goal.current));const [r,sR]=useState(String(goal.rate));
+    <button style={mmb(true)} onClick={()=>{const v=parseInt(a);if(!v||v<=0)return;onAdd({id:uid(),type,amount:v,cat:c,desc:de||c,date:d,repeat:r})}}>ДОБАВИТЬ</button><button style={mmb(false)} onClick={onClose}>ОТМЕНА</button></Mdl>}
+
+function Stg({goal,onGoal,onExport,onReset,onSync,syncStatus,onClose}){const [n,sN]=useState(goal.name);const [t,sT]=useState(String(goal.target));const [cu,sCu]=useState(String(goal.current));const [r,sR]=useState(String(goal.rate));
   return <Mdl onClose={onClose}><div style={{fontSize:16,fontWeight:900,letterSpacing:3,marginBottom:16,color:P.ac}}>⚙ НАСТРОЙКИ</div>
-    <div style={{fontSize:11,fontWeight:700,letterSpacing:2,color:P.t2,marginBottom:8,borderBottom:`1px solid ${P.b4}`,paddingBottom:6}}>ЦЕЛЬ НАКОПЛЕНИЯ</div>
+    <div style={{fontSize:11,fontWeight:700,letterSpacing:2,color:P.t2,marginBottom:8,borderBottom:"1px solid "+P.b4,paddingBottom:6}}>ЦЕЛЬ НАКОПЛЕНИЯ</div>
     <div style={{marginBottom:10}}><div style={sl}>название</div><input style={si} value={n} onChange={e=>sN(e.target.value)}/></div>
     <div style={{display:"flex",gap:8,marginBottom:10}}><div style={{flex:1}}><div style={sl}>цель ₽</div><input style={si} type="number" inputMode="numeric" value={t} onChange={e=>sT(e.target.value)}/></div><div style={{flex:1}}><div style={sl}>накоплено ₽</div><input style={si} type="number" inputMode="numeric" value={cu} onChange={e=>sCu(e.target.value)}/></div></div>
     <div style={{marginBottom:14}}><div style={sl}>% заплати себе</div><input style={{...si,width:80}} type="number" min="0" max="50" value={r} onChange={e=>sR(e.target.value)}/></div>
-    <button style={mb(true)} onClick={()=>onGoal({name:n.toUpperCase(),target:parseInt(t)||0,current:parseInt(cu)||0,rate:parseInt(r)||10})}>СОХРАНИТЬ</button>
-    <div style={{marginTop:20,fontSize:11,fontWeight:700,letterSpacing:2,color:P.t2,marginBottom:8,borderBottom:`1px solid ${P.b4}`,paddingBottom:6}}>ДЕЙСТВИЯ</div>
-    <button style={mb(false)} onClick={()=>{onExport();onClose()}}>📄 ЭКСПОРТ CSV</button><button style={{...mb(false),color:P.rd,marginTop:12}} onClick={()=>{if(confirm("СБРОСИТЬ ВСЕ?")){onReset();onClose()}}}>СБРОС ДАННЫХ</button></Mdl>}
+    <button style={mmb(true)} onClick={()=>onGoal({name:n.toUpperCase(),target:parseInt(t)||0,current:parseInt(cu)||0,rate:parseInt(r)||10})}>СОХРАНИТЬ</button>
+    <div style={{marginTop:20,fontSize:11,fontWeight:700,letterSpacing:2,color:P.t2,marginBottom:8,borderBottom:"1px solid "+P.b4,paddingBottom:6}}>СИНХРОНИЗАЦИЯ</div>
+    <div style={{fontSize:12,color:P.t2,marginBottom:8}}>Статус: <span style={{color:syncStatus==="ok"?P.gn:syncStatus==="err"?P.rd:P.am}}>{syncStatus==="ok"?"ПОДКЛЮЧЕНО":syncStatus==="err"?"ОШИБКА":"ЗАГРУЗКА..."}</span></div>
+    <button style={mmb(false)} onClick={()=>{onSync();onClose()}}>🔄 СИНХРОНИЗИРОВАТЬ СЕЙЧАС</button>
+    <div style={{marginTop:20,fontSize:11,fontWeight:700,letterSpacing:2,color:P.t2,marginBottom:8,borderBottom:"1px solid "+P.b4,paddingBottom:6}}>ДЕЙСТВИЯ</div>
+    <button style={mmb(false)} onClick={()=>{onExport();onClose()}}>📄 ЭКСПОРТ CSV</button><button style={{...mmb(false),color:P.rd,marginTop:12}} onClick={()=>{if(confirm("СБРОСИТЬ ВСЕ?")){onReset();onClose()}}}>СБРОС ДАННЫХ</button></Mdl>}
 
 function App(){
-  const loadSaved=()=>{try{const s=localStorage.getItem(SK);if(s){const d=JSON.parse(s);return d}}catch(e){}return null};
-  const saved=loadSaved();
+  const loadLocal=()=>{try{const s=localStorage.getItem(SK);if(s){const d=JSON.parse(s);return d}}catch(e){}return null};
+  const saved=loadLocal();
   const [items,setItems]=useState(saved&&saved.items?saved.items:DEF);
   const [goal,setGoal]=useState(saved&&saved.goal?saved.goal:DG);
   const [vm,setVm]=useState(new Date().getMonth());
   const [vy,setVy]=useState(new Date().getFullYear());
   const [mod,setMod]=useState(null);
   const [sv,setSv]=useState(false);
-
-  // SAVE — every time items or goal changes, save immediately
+  const [syncSt,setSyncSt]=useState("load");
   const isMount=useRef(true);
+
+  // Load from cloud on start
+  useEffect(()=>{
+    cloudLoad().then(d=>{
+      if(d&&d.items&&d.items.length>0){
+        setItems(d.items);
+        if(d.goal)setGoal(d.goal);
+        localStorage.setItem(SK,JSON.stringify(d));
+        setSyncSt("ok");
+      } else {
+        // No cloud data — push local to cloud
+        const local=loadLocal();
+        if(local&&local.items)cloudSave(local);
+        setSyncSt("ok");
+      }
+    }).catch(()=>setSyncSt("err"));
+  },[]);
+
+  // Save locally + to cloud on every change
   useEffect(()=>{
     if(isMount.current){isMount.current=false;return}
-    try{
-      localStorage.setItem(SK,JSON.stringify({items,goal}));
-      setSv(true);
-      setTimeout(()=>setSv(false),1200);
-    }catch(e){}
+    const data={items,goal};
+    try{localStorage.setItem(SK,JSON.stringify(data))}catch(e){}
+    setSv(true);setTimeout(()=>setSv(false),1200);
+    // Debounced cloud save
+    const t=setTimeout(()=>{cloudSave(data).then(()=>setSyncSt("ok")).catch(()=>setSyncSt("err"))},1500);
+    return()=>clearTimeout(t);
   },[items,goal]);
+
+  const forceSync=()=>{
+    setSyncSt("load");
+    cloudLoad().then(d=>{
+      if(d&&d.items&&d.items.length>0){setItems(d.items);if(d.goal)setGoal(d.goal);localStorage.setItem(SK,JSON.stringify(d))}
+      setSyncSt("ok");
+    }).catch(()=>setSyncSt("err"));
+  };
 
   const dim=new Date(vy,vm+1,0).getDate();
   const days={};
@@ -126,7 +169,12 @@ function App(){
   return <div style={{display:"flex",flexDirection:"column",height:"100vh",maxWidth:900,margin:"0 auto",fontFamily:FT,background:P.bg,color:P.tx,overflow:"hidden"}}>
     <div style={{background:P.b2,padding:"12px 16px",borderBottom:"3px solid "+P.ac,boxShadow:"0 4px 0 #111",flexShrink:0,zIndex:2}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-        <div><div style={{fontSize:18,fontWeight:900,letterSpacing:5}}>CASHFLOW</div><div style={{fontSize:9,color:P.gn,opacity:sv?1:0,transition:"opacity .4s",letterSpacing:2,marginTop:2}}>СОХРАНЕНО ✓</div></div>
+        <div><div style={{fontSize:18,fontWeight:900,letterSpacing:5}}>CASHFLOW</div>
+          <div style={{display:"flex",gap:8,marginTop:2}}>
+            <div style={{fontSize:9,color:P.gn,opacity:sv?1:0,transition:"opacity .4s",letterSpacing:2}}>СОХРАНЕНО ✓</div>
+            <div style={{fontSize:9,letterSpacing:1,color:syncSt==="ok"?P.gn:syncSt==="err"?P.rd:P.am}}>{syncSt==="ok"?"☁ SYNC":syncSt==="err"?"☁ ОШИБКА":"☁ ..."}</div>
+          </div>
+        </div>
         <div style={{display:"flex",gap:6}}><button style={{width:36,height:36,background:P.b3,border:"none",color:P.t2,fontSize:16,cursor:"pointer",boxShadow:SH,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={copyA}>📊</button><button style={{width:36,height:36,background:P.b3,border:"none",color:P.t2,fontSize:16,cursor:"pointer",boxShadow:SH,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={()=>setMod("set")}>⚙</button></div>
       </div>
       <div style={{display:"flex",gap:6}}><div style={{flex:1,background:P.b3,padding:"8px 10px"}}><div style={{fontSize:9,color:P.t2,fontWeight:700,letterSpacing:1}}>ДОХОД</div><div style={{fontSize:16,fontWeight:900,color:P.gn,marginTop:2}}>{fm(totalInc)}</div></div><div style={{flex:1,background:P.b3,padding:"8px 10px"}}><div style={{fontSize:9,color:P.t2,fontWeight:700,letterSpacing:1}}>РАСХОД</div><div style={{fontSize:16,fontWeight:900,color:P.rd,marginTop:2}}>{fm(totalExp)}</div></div><div style={{flex:1,background:P.b3,padding:"8px 10px"}}><div style={{fontSize:9,color:P.t2,fontWeight:700,letterSpacing:1}}>БАЛАНС</div><div style={{fontSize:16,fontWeight:900,color:bal>=0?P.gn:P.rd,marginTop:2}}>{bal>=0?"+":""}{fm(bal)}</div></div></div>
@@ -145,7 +193,7 @@ function App(){
     </div>
     {mod==="inc"&&<AddForm type="income" onAdd={it=>{setItems([...items,it]);setMod(null)}} onClose={()=>setMod(null)}/>}
     {mod==="exp"&&<AddForm type="expense" onAdd={it=>{setItems([...items,it]);setMod(null)}} onClose={()=>setMod(null)}/>}
-    {mod==="set"&&<Stg goal={goal} onGoal={g=>{setGoal(g);setMod(null)}} onExport={exportCSV} onReset={()=>{setItems(DEF);setGoal(DG);localStorage.removeItem(SK)}} onClose={()=>setMod(null)}/>}
+    {mod==="set"&&<Stg goal={goal} onGoal={g=>{setGoal(g);setMod(null)}} onExport={exportCSV} onReset={()=>{setItems(DEF);setGoal(DG);localStorage.removeItem(SK);cloudSave({items:DEF,goal:DG})}} onSync={forceSync} syncStatus={syncSt} onClose={()=>setMod(null)}/>}
   </div>;
 }
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
