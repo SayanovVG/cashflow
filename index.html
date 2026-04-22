@@ -308,34 +308,37 @@ const CATS = {
   ]
 };
 
+// freq: 'weekly' (weekday 0=вс..5=пт..6=сб) или 'monthly' (day 1-31)
 const SEED_RECURRING = [
-  {id:'r_pension',    day:3,  amount:23000, type:'income',  cat:'pension',   name:'Пенсия'},
-  {id:'r_salary',     day:10, amount:60000, type:'income',  cat:'salary',    name:'Зарплата'},
-  {id:'r_bonus',      day:15, amount:25000, type:'income',  cat:'bonus',     name:'Премия'},
-  {id:'r_rent',       day:1,  amount:23000, type:'expense', cat:'rent',      name:'Аренда'},
-  {id:'r_food',       day:1,  amount:30000, type:'expense', cat:'food',      name:'Питание'},
-  {id:'r_fuel',       day:1,  amount:2000,  type:'expense', cat:'fuel',      name:'Бензин'},
-  {id:'r_alimony',    day:5,  amount:25000, type:'expense', cat:'alimony',   name:'Алименты'},
-  {id:'r_utilities',  day:10, amount:7000,  type:'expense', cat:'utilities', name:'Квартплата'},
-  {id:'r_phone',      day:12, amount:1200,  type:'expense', cat:'phone',     name:'Связь МТС'},
-  {id:'r_internet',   day:15, amount:1000,  type:'expense', cat:'internet',  name:'Интернет'},
-  {id:'r_dog',        day:20, amount:2000,  type:'expense', cat:'dog',       name:'Корм собаке'},
-  {id:'r_household',  day:25, amount:2000,  type:'expense', cat:'household', name:'Быт. химия'}
+  // доходы
+  {id:'r_salary',      freq:'weekly',  weekday:5, amount:14000, type:'income',  cat:'salary',    name:'ЗП'},
+  {id:'r_pension',     freq:'monthly', day:6,     amount:23000, type:'income',  cat:'pension',   name:'Пенсия'},
+  {id:'r_bonus',       freq:'monthly', day:16,    amount:20000, type:'income',  cat:'bonus',     name:'Премия'},
+  // расходы
+  {id:'r_food',        freq:'weekly',  weekday:5, amount:8000,  type:'expense', cat:'food',      name:'Еда на неделю'},
+  {id:'r_pocket',      freq:'weekly',  weekday:5, amount:4000,  type:'expense', cat:'other_out', name:'Карманные'},
+  {id:'r_alimony',     freq:'monthly', day:6,     amount:25000, type:'expense', cat:'alimony',   name:'Алименты'},
+  {id:'r_dog',         freq:'monthly', day:1,     amount:3000,  type:'expense', cat:'dog',       name:'Корм собаке'},
+  {id:'r_fuel',        freq:'monthly', day:1,     amount:2000,  type:'expense', cat:'fuel',      name:'Бензин'},
+  {id:'r_phone',       freq:'monthly', day:10,    amount:1400,  type:'expense', cat:'phone',     name:'Связь'},
+  {id:'r_household',   freq:'monthly', day:25,    amount:2000,  type:'expense', cat:'household', name:'Быт. химия'},
+  {id:'r_utilities',   freq:'monthly', day:30,    amount:6500,  type:'expense', cat:'utilities', name:'Квартплата'},
+  {id:'r_electricity', freq:'monthly', day:30,    amount:2000,  type:'expense', cat:'utilities', name:'Свет'},
+  {id:'r_internet',    freq:'monthly', day:30,    amount:1200,  type:'expense', cat:'internet',  name:'Интернет'}
 ];
 
-const SEED_DEBTS = [
-  {id:'d_zheka',  name:'Жека',     amount:1000,  direction:'owe', dueDate:null,         status:'open'},
-  {id:'d_tax',    name:'Налог ИП', amount:7000,  direction:'owe', dueDate:'2026-04-28', status:'open'},
-  {id:'d_laptop', name:'Ноутбук',  amount:15000, direction:'owe', dueDate:null,         status:'open'}
-];
+const SEED_DEBTS = [];
 
 let state;
 let ui = { tab: 'home', sub: 'today', modal: null, syncing: false, syncStatus: '' };
 let mf = null;
 
 function defaultState() {
+  const d = new Date();
+  const pz = n => n < 10 ? '0' + n : '' + n;
   return {
     startBalance: 5572,
+    startDate: d.getFullYear() + '-' + pz(d.getMonth() + 1) + '-' + pz(d.getDate()),
     transactions: [],
     recurring: JSON.parse(JSON.stringify(SEED_RECURRING)),
     debts: JSON.parse(JSON.stringify(SEED_DEBTS)),
@@ -388,32 +391,70 @@ function escapeHtml(s) {
 
 function expandRecurring(from, to) {
   const out = [];
-  const cur = new Date(from.getFullYear(), from.getMonth(), 1);
-  while (cur <= to) {
-    const y = cur.getFullYear(), m = cur.getMonth();
-    for (const r of state.recurring) {
-      const d = Math.min(r.day, daysInMonth(y, m));
-      const date = new Date(y, m, d);
-      if (date < from || date > to) continue;
-      const mk = y + '-' + pad2(m + 1);
-      if (state.paidRecurring[r.id + '-' + mk]) continue;
-      const co = catObj(r.type, r.cat);
-      out.push({
-        id: 'rec-' + r.id + '-' + mk,
-        recurringId: r.id,
-        date: ymd(date),
-        amount: r.amount,
-        type: r.type,
-        category: r.cat,
-        categoryName: co.name,
-        icon: co.ic,
-        iconColor: co.color,
-        name: r.name,
-        status: 'plan',
-        virtual: true
-      });
+  const startStr = state.startDate || '2020-01-01';
+  const startD = parseYmd(startStr);
+  const effFrom = from > startD ? from : startD;
+  if (effFrom > to) return out;
+  for (const r of state.recurring) {
+    if (r.disabled) continue;
+    const freq = r.freq || 'monthly';
+    const co = catObj(r.type, r.cat);
+
+    if (freq === 'weekly') {
+      const wd = (r.weekday == null) ? 5 : r.weekday;
+      const cur = new Date(effFrom.getFullYear(), effFrom.getMonth(), effFrom.getDate());
+      const shift = (wd - cur.getDay() + 7) % 7;
+      cur.setDate(cur.getDate() + shift);
+      while (cur <= to) {
+        const dkey = ymd(cur);
+        if (!state.paidRecurring[r.id + '-' + dkey]) {
+          out.push({
+            id: 'rec-' + r.id + '-' + dkey,
+            recurringId: r.id,
+            recurringKey: dkey,
+            date: dkey,
+            amount: r.amount,
+            type: r.type,
+            category: r.cat,
+            categoryName: co.name,
+            icon: co.ic,
+            iconColor: co.color,
+            name: r.name,
+            status: 'plan',
+            virtual: true
+          });
+        }
+        cur.setDate(cur.getDate() + 7);
+      }
+    } else {
+      const cur = new Date(effFrom.getFullYear(), effFrom.getMonth(), 1);
+      while (cur <= to) {
+        const y = cur.getFullYear(), m = cur.getMonth();
+        const d = Math.min(r.day || 1, daysInMonth(y, m));
+        const date = new Date(y, m, d);
+        if (date >= effFrom && date <= to) {
+          const mk = y + '-' + pad2(m + 1);
+          if (!state.paidRecurring[r.id + '-' + mk]) {
+            out.push({
+              id: 'rec-' + r.id + '-' + mk,
+              recurringId: r.id,
+              recurringKey: mk,
+              date: ymd(date),
+              amount: r.amount,
+              type: r.type,
+              category: r.cat,
+              categoryName: co.name,
+              icon: co.ic,
+              iconColor: co.color,
+              name: r.name,
+              status: 'plan',
+              virtual: true
+            });
+          }
+        }
+        cur.setMonth(cur.getMonth() + 1);
+      }
     }
-    cur.setMonth(cur.getMonth() + 1);
   }
   return out;
 }
@@ -508,8 +549,7 @@ function payPlan(item, amount, date) {
   const d = date || todayYmd();
   const amt = amount != null ? Math.abs(+amount) : item.amount;
   if (item.virtual) {
-    const mk = item.date.slice(0, 7);
-    state.paidRecurring[item.recurringId + '-' + mk] = true;
+    state.paidRecurring[item.recurringId + '-' + item.recurringKey] = true;
     state.transactions.push({
       id: uid(),
       date: d,
@@ -799,6 +839,28 @@ function renderDebts() {
 
 function renderSettings() {
   const lastSync = state.lastSync ? new Date(state.lastSync).toLocaleString('ru-RU') : 'никогда';
+  const recList = state.recurring.slice().sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'income' ? -1 : 1;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+  const WD = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+  let recHtml = '';
+  for (const r of recList) {
+    const co = catObj(r.type, r.cat);
+    const freq = r.freq || 'monthly';
+    const whenClean = freq === 'weekly'
+      ? 'еженедельно · ' + WD[r.weekday == null ? 5 : r.weekday]
+      : 'ежемесячно · ' + (r.day || 1) + ' число';
+    const sign = r.type === 'income' ? '+' : '−';
+    const amtColor = r.type === 'income' ? 'var(--green)' : 'var(--text)';
+    recHtml += '<button class="item" data-act="edit-rec" data-id="' + r.id + '"' + (r.disabled ? ' style="opacity:0.5"' : '') + '>'
+      + '<div class="icon-cat ic-c-' + co.color + '">' + co.ic + '</div>'
+      + '<div class="item-meta"><div class="item-title">' + escapeHtml(r.name) + '</div>'
+      + '<div class="item-sub">' + whenClean + (r.disabled ? ' · ВЫКЛ' : '') + '</div></div>'
+      + '<div class="item-amt-box"><div class="item-amt" style="color:' + amtColor + '">' + sign + fmt(r.amount) + ' ₽</div></div>'
+      + '</button>';
+  }
+
   return '<div class="page-title">Ещё</div>'
     + '<div class="list">'
     + '<div class="item" style="cursor:default">'
@@ -807,6 +869,15 @@ function renderSettings() {
     + '<div class="item-sub">Всё считается от него</div></div>'
     + '<div class="item-amt-box"><input type="number" inputmode="numeric" value="' + state.startBalance + '" data-act="start-balance" style="width:110px;text-align:right;padding:8px 10px;font-family:\'Geist Mono\',monospace;font-weight:600;border:1px solid var(--border);border-radius:8px;background:#fff;font-size:14px"></div>'
     + '</div>'
+    + '</div>'
+
+    + '<div style="padding:16px 20px 8px;font-size:11px;letter-spacing:2px;color:var(--text3);font-weight:700;text-transform:uppercase">Повторяющиеся</div>'
+    + '<div class="list">' + recHtml
+    + '<button class="btn ghost" data-act="add-rec">＋ ДОБАВИТЬ ПОВТОРЯЮЩИЙСЯ</button>'
+    + '</div>'
+
+    + '<div style="padding:16px 20px 8px;font-size:11px;letter-spacing:2px;color:var(--text3);font-weight:700;text-transform:uppercase">Данные</div>'
+    + '<div class="list">'
     + '<button class="item" data-act="sync">'
     + '<div class="icon-cat ic-c-blue">☁</div>'
     + '<div class="item-meta"><div class="item-title">Синхронизация</div>'
@@ -836,17 +907,19 @@ function renderModal() {
   if (ui.modal === 'add') return renderAddModal();
   if (ui.modal === 'addDebt') return renderAddDebtModal();
   if (ui.modal === 'payPlan') return renderPayPlanModal();
+  if (ui.modal === 'editRec') return renderEditRecModal();
   return '';
 }
 function renderAddModal() {
   if (!mf) mf = { type: 'expense', category: 'food', amount: '', date: todayYmd(), status: 'fact', note: '' };
   const cats = CATS[mf.type];
+  const isEdit = !!mf.editId;
   let catsHtml = '';
   for (const c of cats) {
     catsHtml += '<button class="cat-btn' + (mf.category === c.id ? ' active' : '') + '" data-act="mf-cat" data-val="' + c.id + '"><div class="ic">' + c.ic + '</div>' + c.name + '</button>';
   }
   return '<div class="overlay"><div class="modal">'
-    + '<h2>Новая операция</h2>'
+    + '<h2>' + (isEdit ? 'Изменить операцию' : 'Новая операция') + '</h2>'
     + '<div class="type-toggle">'
     + '<button class="' + (mf.type === 'income' ? 'active in' : '') + '" data-act="mf-type" data-val="income">＋ ДОХОД</button>'
     + '<button class="' + (mf.type === 'expense' ? 'active out' : '') + '" data-act="mf-type" data-val="expense">− РАСХОД</button>'
@@ -865,7 +938,8 @@ function renderAddModal() {
     + '</select></div></div>'
     + '<label class="field-label">Заметка</label>'
     + '<input class="input" type="text" data-act="mf-note" value="' + escapeHtml(mf.note) + '" placeholder="...">'
-    + '<button class="btn" data-act="mf-save">СОХРАНИТЬ</button>'
+    + '<button class="btn" data-act="mf-save">' + (isEdit ? 'СОХРАНИТЬ' : 'ДОБАВИТЬ') + '</button>'
+    + (isEdit ? '<button class="btn red" data-act="mf-delete-tx">УДАЛИТЬ</button>' : '')
     + '<button class="btn ghost" data-act="cancel-modal">Отмена</button>'
     + '</div></div>';
 }
@@ -898,6 +972,55 @@ function renderPayPlanModal() {
     + '<label class="field-label">Дата фактической оплаты</label>'
     + '<input class="input" type="date" data-act="mf-date" value="' + mf.date + '">'
     + '<button class="btn" data-act="mf-confirm-pay">✓ ПОДТВЕРДИТЬ</button>'
+    + '<button class="btn ghost" data-act="cancel-modal">Отмена</button>'
+    + '</div></div>';
+}
+
+function renderEditRecModal() {
+  if (!mf) mf = { name: '', amount: '', type: 'expense', cat: 'food', freq: 'monthly', day: 1, weekday: 5, disabled: false };
+  const cats = CATS[mf.type];
+  const isEdit = !!mf.recId;
+  let catsHtml = '';
+  for (const c of cats) {
+    catsHtml += '<button class="cat-btn' + (mf.cat === c.id ? ' active' : '') + '" data-act="mf-cat2" data-val="' + c.id + '"><div class="ic">' + c.ic + '</div>' + c.name + '</button>';
+  }
+  const WD = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+  let wdHtml = '';
+  for (let i = 0; i < 7; i++) {
+    wdHtml += '<button class="cat-btn' + (mf.weekday === i ? ' active' : '') + '" data-act="mf-wd" data-val="' + i + '" style="padding:10px 2px">' + WD[i] + '</button>';
+  }
+  let dayOpts = '';
+  for (let i = 1; i <= 31; i++) dayOpts += '<option value="' + i + '"' + (mf.day === i ? ' selected' : '') + '>' + i + '</option>';
+
+  return '<div class="overlay"><div class="modal">'
+    + '<h2>' + (isEdit ? 'Изменить повторяющийся' : 'Новый повторяющийся') + '</h2>'
+    + '<div class="type-toggle">'
+    + '<button class="' + (mf.type === 'income' ? 'active in' : '') + '" data-act="mf-type2" data-val="income">＋ ДОХОД</button>'
+    + '<button class="' + (mf.type === 'expense' ? 'active out' : '') + '" data-act="mf-type2" data-val="expense">− РАСХОД</button>'
+    + '</div>'
+    + '<label class="field-label">Название</label>'
+    + '<input class="input" type="text" data-act="mf-name" value="' + escapeHtml(mf.name) + '" placeholder="ЗП, Квартплата, ...">'
+    + '<label class="field-label">Сумма · ₽</label>'
+    + '<input class="input big" type="number" inputmode="numeric" data-act="mf-amount" value="' + mf.amount + '" placeholder="0">'
+    + '<label class="field-label">Категория</label>'
+    + '<div class="cat-grid">' + catsHtml + '</div>'
+    + '<label class="field-label">Периодичность</label>'
+    + '<div class="type-toggle">'
+    + '<button class="' + (mf.freq === 'monthly' ? 'active in' : '') + '" data-act="mf-freq" data-val="monthly">МЕСЯЦ</button>'
+    + '<button class="' + (mf.freq === 'weekly' ? 'active in' : '') + '" data-act="mf-freq" data-val="weekly">НЕДЕЛЯ</button>'
+    + '</div>'
+    + (mf.freq === 'weekly'
+        ? '<label class="field-label">День недели</label><div class="cat-grid" style="grid-template-columns:repeat(7,1fr)">' + wdHtml + '</div>'
+        : '<label class="field-label">Число месяца</label><select class="input" data-act="mf-day">' + dayOpts + '</select>')
+    + (isEdit
+        ? '<label class="field-label">Статус</label>'
+          + '<div class="type-toggle">'
+          + '<button class="' + (!mf.disabled ? 'active in' : '') + '" data-act="mf-disabled" data-val="0">ВКЛ</button>'
+          + '<button class="' + (mf.disabled ? 'active out' : '') + '" data-act="mf-disabled" data-val="1">ВЫКЛ</button>'
+          + '</div>'
+        : '')
+    + '<button class="btn" data-act="mf-save-rec">' + (isEdit ? 'СОХРАНИТЬ' : 'ДОБАВИТЬ') + '</button>'
+    + (isEdit ? '<button class="btn red" data-act="mf-delete-rec">УДАЛИТЬ</button>' : '')
     + '<button class="btn ghost" data-act="cancel-modal">Отмена</button>'
     + '</div></div>';
 }
@@ -953,7 +1076,19 @@ function onClick(e) {
       ui.modal = 'payPlan';
       render();
     } else {
-      if (confirm('Удалить эту операцию?')) deleteTx(item.id);
+      const t = state.transactions.find(x => x.id === item.id);
+      if (!t) return;
+      mf = {
+        editId: t.id,
+        type: t.type,
+        category: t.category,
+        amount: t.amount,
+        date: t.date,
+        status: t.status || 'fact',
+        note: t.note || ''
+      };
+      ui.modal = 'add';
+      render();
     }
     return;
   }
@@ -966,11 +1101,93 @@ function onClick(e) {
   if (act === 'mf-type') { mf.type = val; mf.category = CATS[val][0].id; render(); return; }
   if (act === 'mf-cat') { mf.category = val; render(); return; }
   if (act === 'mf-dir') { mf.direction = val; render(); return; }
-  if (act === 'mf-save') {
-    if (!mf || !mf.amount || +mf.amount <= 0) { alert('Укажи сумму'); return; }
-    addTx(mf);
+
+  if (act === 'edit-rec') {
+    const id = a.dataset.id;
+    const r = state.recurring.find(x => x.id === id);
+    if (!r) return;
+    mf = {
+      recId: r.id,
+      name: r.name || '',
+      amount: r.amount,
+      type: r.type,
+      cat: r.cat,
+      freq: r.freq || 'monthly',
+      day: r.day || 1,
+      weekday: r.weekday == null ? 5 : r.weekday,
+      disabled: !!r.disabled
+    };
+    ui.modal = 'editRec';
+    render(); return;
+  }
+  if (act === 'add-rec') {
+    mf = { name: '', amount: '', type: 'expense', cat: 'food', freq: 'monthly', day: 1, weekday: 5, disabled: false };
+    ui.modal = 'editRec';
+    render(); return;
+  }
+  if (act === 'mf-type2') { mf.type = val; mf.cat = CATS[val][0].id; render(); return; }
+  if (act === 'mf-cat2') { mf.cat = val; render(); return; }
+  if (act === 'mf-freq') { mf.freq = val; render(); return; }
+  if (act === 'mf-wd') { mf.weekday = +val; render(); return; }
+  if (act === 'mf-disabled') { mf.disabled = val === '1'; render(); return; }
+
+  if (act === 'mf-save-rec') {
+    if (!mf || !mf.name || !mf.amount || +mf.amount <= 0) { alert('Заполни название и сумму'); return; }
+    const payload = {
+      name: mf.name,
+      amount: Math.abs(+mf.amount),
+      type: mf.type,
+      cat: mf.cat,
+      freq: mf.freq,
+      day: mf.freq === 'monthly' ? (+mf.day || 1) : undefined,
+      weekday: mf.freq === 'weekly' ? (mf.weekday == null ? 5 : +mf.weekday) : undefined,
+      disabled: !!mf.disabled
+    };
+    if (mf.recId) {
+      const r = state.recurring.find(x => x.id === mf.recId);
+      if (r) Object.assign(r, payload);
+    } else {
+      state.recurring.push({ id: 'r_' + uid(), ...payload });
+    }
+    save();
     ui.modal = null; mf = null;
     render(); return;
+  }
+  if (act === 'mf-delete-rec') {
+    if (mf && mf.recId && confirm('Удалить повторяющийся платёж?')) {
+      state.recurring = state.recurring.filter(r => r.id !== mf.recId);
+      save();
+      ui.modal = null; mf = null;
+      render();
+    }
+    return;
+  }
+  if (act === 'mf-save') {
+    if (!mf || !mf.amount || +mf.amount <= 0) { alert('Укажи сумму'); return; }
+    if (mf.editId) {
+      const t = state.transactions.find(x => x.id === mf.editId);
+      if (t) {
+        t.type = mf.type;
+        t.category = mf.category;
+        t.amount = Math.abs(+mf.amount);
+        t.date = mf.date || todayYmd();
+        t.status = mf.status || 'fact';
+        t.note = mf.note || '';
+        save();
+      }
+    } else {
+      addTx(mf);
+    }
+    ui.modal = null; mf = null;
+    render(); return;
+  }
+  if (act === 'mf-delete-tx') {
+    if (mf && mf.editId && confirm('Удалить операцию?')) {
+      deleteTx(mf.editId);
+      ui.modal = null; mf = null;
+      render();
+    }
+    return;
   }
   if (act === 'mf-save-debt') {
     if (!mf || !mf.name || !mf.amount || +mf.amount <= 0) { alert('Заполни имя и сумму'); return; }
@@ -1003,6 +1220,7 @@ function onInput(e) {
   else if (act === 'mf-name') mf.name = v;
   else if (act === 'mf-due') mf.dueDate = v;
   else if (act === 'mf-status') mf.status = v;
+  else if (act === 'mf-day') mf.day = +v;
 }
 
 const appRoot = document.getElementById('app');
