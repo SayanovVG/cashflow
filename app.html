@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0B0D0F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<title>CASHFLOW</title>
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}html,body{width:100%;height:100%;background:#0B0D0F;overflow:hidden}body{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.shell{width:100%;height:100%;background:#0B0D0F;position:relative}.frame{width:100%;height:100%;border:0;display:block;background:#0B0D0F}.boot{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#0B0D0F;color:#F5F7F8;z-index:5;transition:.2s opacity}.boot.hide{opacity:0;pointer-events:none}.brand{font-size:14px;letter-spacing:.34em;font-weight:800}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#26D07C;margin-left:10px;box-shadow:0 0 18px rgba(38,208,124,.55)}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="boot" id="boot"><div class="brand">CASHFLOW<span class="dot"></span></div></div>
+  <iframe class="frame" id="cashflow" src="./index.html" title="CASHFLOW"></iframe>
+</div>
+<script>
+const DARK_CSS = `
+:root{--bg:#0B0D0F!important;--surface:#12161A!important;--surface2:#171C21!important;--text:#F5F7F8!important;--text2:#A7B0B8!important;--text3:#727D86!important;--border:#20272D!important;--green:#26D07C!important;--green-bg:rgba(38,208,124,.12)!important;--red:#FF5C67!important;--red-bg:rgba(255,92,103,.12)!important;--amber:#F5B84B!important;--amber-bg:rgba(245,184,75,.11)!important;--amber-border:rgba(245,184,75,.24)!important;--blue:#5AA7FF!important;--blue-bg:rgba(90,167,255,.12)!important;--purple:#B88CFF!important;--purple-bg:rgba(184,140,255,.12)!important;--radius:24px!important;--radius-sm:16px!important}
+html,body{background:#0B0D0F!important;color:#F5F7F8!important}body{display:flex!important;justify-content:center!important}.app{background:#0B0D0F!important;max-width:480px!important}.header{background:rgba(11,13,15,.86)!important;backdrop-filter:blur(18px)!important;-webkit-backdrop-filter:blur(18px)!important;padding-top:max(14px,env(safe-area-inset-top))!important}.logo{color:#E9EEF2!important;font-weight:800!important;letter-spacing:4px!important}.avatar{background:#20272D!important;color:#26D07C!important;box-shadow:inset 0 0 0 1px #2B343C!important}.hero{background:linear-gradient(145deg,#151A1F 0%,#0F1316 100%)!important;box-shadow:0 18px 50px rgba(0,0,0,.28)!important;border:1px solid #20272D!important}.hero-num{color:#F7F9FA!important;font-weight:300!important}.chart-wrap,.item,.debt-card,.modal{background:#12161A!important;border:1px solid #20272D!important;box-shadow:none!important}.tabs{background:#171C21!important}.tab.active{background:#222930!important;color:#F5F7F8!important;box-shadow:none!important}.navbar{background:rgba(11,13,15,.92)!important;border-color:#20272D!important;backdrop-filter:blur(22px)!important;-webkit-backdrop-filter:blur(22px)!important}.nav-item.active{color:#26D07C!important}.nav-fab{background:#26D07C!important;color:#07110C!important;box-shadow:0 8px 28px rgba(38,208,124,.28)!important}.input{background:#0F1316!important;border-color:#242C33!important;color:#F5F7F8!important}.input:focus{border-color:#26D07C!important;box-shadow:0 0 0 3px rgba(38,208,124,.10)!important}.btn{background:#26D07C!important;color:#07110C!important}.btn.ghost{background:#171C21!important;color:#F5F7F8!important;border-color:#252E35!important}.btn.red{background:#FF5C67!important;color:#fff!important}.debt-alert{background:linear-gradient(145deg,rgba(245,184,75,.12),rgba(245,184,75,.06))!important;border-color:rgba(245,184,75,.24)!important}.debt-alert .t1,.debt-alert .amt{color:#F4C66C!important}.debt-alert .t2{color:#B7985A!important}.item-title{color:#F2F5F7!important}.item-sub,.field-label,.hero-label{color:#7F8A93!important}.amt-out{color:#F2F5F7!important}.overlay{background:rgba(0,0,0,.68)!important}.modal{border-radius:28px 28px 0 0!important}.cat-btn{background:#101418!important;border-color:#242C33!important;color:#A7B0B8!important}.cat-btn.active{background:rgba(38,208,124,.10)!important;border-color:#26D07C!important;color:#26D07C!important}svg text{fill:#7F8A93!important}
+`;
+
+function applyTheme(){
+  const frame=document.getElementById('cashflow');
+  try{
+    const doc=frame.contentDocument||frame.contentWindow.document;
+    if(!doc||!doc.head)return;
+    let style=doc.getElementById('cashflow-dark-theme');
+    if(!style){style=doc.createElement('style');style.id='cashflow-dark-theme';doc.head.appendChild(style)}
+    style.textContent=DARK_CSS;
+    let theme=doc.querySelector('meta[name="theme-color"]');
+    if(theme)theme.setAttribute('content','#0B0D0F');
+    document.getElementById('boot').classList.add('hide');
+  }catch(e){console.warn('Theme injection failed',e);document.getElementById('boot').classList.add('hide')}
+}
+
+document.getElementById('cashflow').addEventListener('load',()=>{applyTheme();setTimeout(applyTheme,150)});
+if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(console.warn))}
+</script>
+</body>
+</html>
