@@ -1,0 +1,19 @@
+{
+  "name": "CASHFLOW",
+  "short_name": "CASHFLOW",
+  "description": "Личный финансовый контроль: баланс, обязательства, долги и денежный поток",
+  "start_url": "./app.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0B0D0F",
+  "theme_color": "#0B0D0F",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
