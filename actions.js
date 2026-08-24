@@ -31,7 +31,7 @@ document.addEventListener('click',e=>{
  if(act==='repay-self'){ui.modal={type:'self'};render()}
  if(act==='save-self'){state.selfDebt=Math.max(0,Number(document.getElementById('simpleValue').value)||0);ui.modal=null;save()}
  if(act==='set-balance'){ui.modal={type:'balance'};render()}
- if(act==='save-balance'){const target=Number(document.getElementById('simpleValue').value)||0,delta=target-actualBalance();if(delta!==0)addTransaction({type:delta>0?'income':'expense',category:delta>0?'other_in':'other_out',amount:Math.abs(delta),date:today(),note:'Корректировка баланса'});ui.modal=null;save()}
+ if(act==='save-balance'){const target=Number(document.getElementById('simpleValue').value)||0;state.startBalance=target;state.startDate=today();state.transactions=state.transactions.filter(t=>t.date>=state.startDate);state.paidRecurring={};ui.modal=null;save()}
  if(act==='set-percent'){ui.modal={type:'percent'};render()}
  if(act==='save-percent'){state.settings.paySelfPercent=Math.max(0,Math.min(50,Number(document.getElementById('simpleValue').value)||0));ui.modal=null;save()}
  if(act==='recurring'){ui.modal={type:'recurring'};render()}
